@@ -13,7 +13,6 @@ local function body_iterator(pre,form)
         end
         typ, res, err = form:read()
         if typ == "body" then
-            ngx.say("body type: ", type(res))
             if not typ then
                 ngx.say("failed to read: ", err)
                 return nil

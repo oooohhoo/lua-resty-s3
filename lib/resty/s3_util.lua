@@ -416,7 +416,7 @@ function _M.headerstr(headers)
     return table.concat(lines, " ")
 end
 
-local function http_req(method, uri, body, myheaders, timeout, ssl_verify
+local function http_req(method, uri, body, myheaders, timeout, ssl_verify)
     local uri, host = _M.get_resolver_url(uri)
     if uri == nil then
         return nil, host
@@ -504,7 +504,7 @@ end
 
 
 --支持302的请求
-local function http_req_3xx(method, uri, body, myheaders, timeout, ssl_verify
+local function http_req_3xx(method, uri, body, myheaders, timeout, ssl_verify)
     local req_uri = uri
     local err = ""
     local jump_times = 0
@@ -524,7 +524,7 @@ local function http_req_3xx(method, uri, body, myheaders, timeout, ssl_verify
             end
         end
         ngx.log(ngx.INFO, "before request: ", req_uri)
-        res, err,req_debug = http_req(method, req_uri, body, myheaders, timeout, ssl_verify
+        res, err,req_debug = http_req(method, req_uri, body, myheaders, timeout, ssl_verify)
         -- 请求错误，或者状态码不等于302/301/307，直接返回。
         if not res or math.floor(res.status/100) ~= 3 then
             if res then
@@ -562,24 +562,24 @@ local function http_req_3xx(method, uri, body, myheaders, timeout, ssl_verify
     return res, err, req_debug
 end
 
-function _M.http_head(uri, myheaders, timeout, ssl_verify
-    return http_req_3xx("HEAD", uri, nil, myheaders, timeout, ssl_verify
+function _M.http_head(uri, myheaders, timeout, ssl_verify)
+    return http_req_3xx("HEAD", uri, nil, myheaders, timeout, ssl_verify)
 end
 
-function _M.http_get(uri, myheaders, timeout, ...)
-    return http_req_3xx("GET", uri, nil, myheaders, timeout, ssl_verify
+function _M.http_get(uri, myheaders, timeout, ssl_verify)
+    return http_req_3xx("GET", uri, nil, myheaders, timeout, ssl_verify)
 end
 
-function _M.http_del(uri, myheaders, timeout, ...)
-    return http_req_3xx("DELETE", uri, nil, myheaders, timeout, ssl_verify
+function _M.http_del(uri, myheaders, timeout, ssl_verify)
+    return http_req_3xx("DELETE", uri, nil, myheaders, timeout, ssl_verify)
 end
 
-function _M.http_post(uri, body, myheaders, timeout, ...)
-    return http_req_3xx("POST", uri, body, myheaders, timeout, ssl_verify
+function _M.http_post(uri, body, myheaders, timeout, ssl_verify)
+    return http_req_3xx("POST", uri, body, myheaders, timeout, ssl_verify)
 end
 
-function _M.http_put(uri,  body, myheaders, timeout, ...)
-    return http_req_3xx("PUT", uri, body, myheaders, timeout, ssl_verify
+function _M.http_put(uri,  body, myheaders, timeout, ssl_verify)
+    return http_req_3xx("PUT", uri, body, myheaders, timeout, ssl_verify)
 end
 
 -- 尝试从/etc/resolv.conf读取dns配置(如果有配置)。
