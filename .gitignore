@@ -3,3 +3,4 @@
 # OPM builds
 lua-resty-s3-*/*
 *.tar*
+.DS_Store

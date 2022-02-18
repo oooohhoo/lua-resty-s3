@@ -39,12 +39,20 @@ function _M:new(aws_access_key, aws_secret_key, aws_bucket, args)
 
     local timeout = 10 * 1000
     local aws_region = "us-east-1"
+    local ssl = true
+    local ssl_verify = true
     if args and type(args) == 'table' then
         if args.timeout then
             timeout = args.timeout
         end
         if args.aws_region then
             aws_region = args.aws_region
+        end
+        if args.ssl then
+            ssl = args.ssl
+        end
+        if args.ssl_verify then
+            ssl_verify = args.ssl_verify
         end
     end
 
@@ -61,7 +69,7 @@ function _M:new(aws_access_key, aws_secret_key, aws_bucket, args)
         add_bucket_to_uri = true
     end
 
-    return setmetatable({ auth=auth, host=host, aws_bucket=aws_bucket, add_bucket_to_uri=add_bucket_to_uri, aws_region=aws_region,timeout=timeout}, mt)
+    return setmetatable({ auth=auth, host=host, aws_bucket=aws_bucket, add_bucket_to_uri=add_bucket_to_uri, aws_region=aws_region,timeout=timeout,ssl=ssl,ssl_verify=ssl_verify}, mt)
 end
 
 function _M:get_short_uri(key)
@@ -135,15 +143,20 @@ function _M:get(key)
 end
 
 -- http://docs.aws.amazon.com/AmazonS3/latest/API/RESTObjectPUT.html
-function _M:put(key, value, headers)
+function _M:put(key, body, headers)
     local short_uri = self:get_short_uri(key)
     headers = headers or util.new_headers()
-    local authorization = self.auth:authorization_v4("PUT", short_uri, headers, value)
-
-    local url = "http://" .. self.host .. util.uri_encode(short_uri, false)
+    -- local authorization = self.auth:authorization_v4("PUT", short_uri, headers, value)
+    local url = self.host .. util.uri_encode(short_uri, false)
+    if self.ssl then
+        url = "https://" .. url
+    else
+        url = "http://" .. url
+    end
+    -- local url = "http://" .. self.host .. util.uri_encode(short_uri, false)
     ngx.log(ngx.INFO, "----- url: ", url)
     -- TODO: check authorization.
-    local res, err, req_debug = util.http_put(url, value, headers, self.timeout)
+    local res, err, req_debug = util.http_put(url, body, headers, self.timeout, self.ssl_verify)
     if not res then
         ngx.log(ngx.ERR, "fail request to aws s3 service: [ ", req_debug, " ] err: ", err)
         return false, "request to aws s3 failed", 500

@@ -366,6 +366,9 @@ function _M.get_resolver_url(url)
     local xurl = url
     if string.sub(url, 1, 7) == "http://" then
         xurl = string.sub(url, 8)
+    else if string.sub(url, 1, 8) == "https://" then
+        xurl = string.sub(url, 9)
+        end
     end
 
     -- print(xurl)
@@ -413,7 +416,7 @@ function _M.headerstr(headers)
     return table.concat(lines, " ")
 end
 
-local function http_req(method, uri, body, myheaders, timeout)
+local function http_req(method, uri, body, myheaders, timeout, ssl_verify
     local uri, host = _M.get_resolver_url(uri)
     if uri == nil then
         return nil, host
@@ -430,30 +433,30 @@ local function http_req(method, uri, body, myheaders, timeout)
         timeout_str = tostring(timeout)
     end
     local req_debug = ""
-    if method == "PUT" or method == "POST" then
-        local debug_body = nil
-        local content_type = myheaders["Content-Type"]
-        if content_type == nil or _M.startswith(content_type, "text") then 
-            if string.len(body) < 1024 then
-                debug_body = body
-            else
-                debug_body = string.sub(body, 1, 1024)
-            end
-        else 
-            debug_body = "[[not text body: " .. tostring(content_type) .. "]]"
-        end
-        req_debug = "curl -v -X " .. method .. " " .. _M.headerstr(myheaders) .. " '" .. uri .. "' -d '" .. debug_body .. "' -o /dev/null"
-    else
-        body = nil
-        req_debug = "curl -v -X " .. method .. " " .. _M.headerstr(myheaders) .. " '" .. uri .. "' -o /dev/null"
-    end
+    -- if method == "PUT" or method == "POST" then
+    --     local debug_body = nil
+    --     local content_type = myheaders["Content-Type"]
+    --     if content_type == nil or _M.startswith(content_type, "text") then 
+    --         if string.len(body) < 1024 then
+    --             debug_body = body
+    --         else
+    --             debug_body = string.sub(body, 1, 1024)
+    --         end
+    --     else 
+    --         debug_body = "[[not text body: " .. tostring(content_type) .. "]]"
+    --     end
+    --     req_debug = "curl -v -X " .. method .. " " .. _M.headerstr(myheaders) .. " '" .. uri .. "' -d '" .. debug_body .. "' -o /dev/null"
+    -- else
+    --     body = nil
+    --     req_debug = "curl -v -X " .. method .. " " .. _M.headerstr(myheaders) .. " '" .. uri .. "' -o /dev/null"
+    -- end
     ngx.log(ngx.INFO, method, " REQUEST [ ", req_debug, " ] timeout:", timeout_str)
     local httpc = http.new()
     if timeout then
         httpc:set_timeout(timeout)
     end
     local begin = ngx.now()
-    local res, err = httpc:request_uri(uri, {method = method, headers = myheaders, body=body})
+    local res, err = httpc:request_uri(uri, {method = method, headers = myheaders, body=body, ssl_verify=ssl_verify})
     local cost = ngx.now()-begin
     if not res then
         ngx.log(ngx.ERR, "FAIL REQUEST [ ",req_debug, " ] err:", err, ", cost:", cost)
@@ -501,7 +504,7 @@ end
 
 
 --支持302的请求
-local function http_req_3xx(method, uri, body, myheaders, timeout)
+local function http_req_3xx(method, uri, body, myheaders, timeout, ssl_verify
     local req_uri = uri
     local err = ""
     local jump_times = 0
@@ -521,7 +524,7 @@ local function http_req_3xx(method, uri, body, myheaders, timeout)
             end
         end
         ngx.log(ngx.INFO, "before request: ", req_uri)
-        res, err,req_debug = http_req(method, req_uri, body, myheaders, timeout)
+        res, err,req_debug = http_req(method, req_uri, body, myheaders, timeout, ssl_verify
         -- 请求错误，或者状态码不等于302/301/307，直接返回。
         if not res or math.floor(res.status/100) ~= 3 then
             if res then
@@ -559,24 +562,24 @@ local function http_req_3xx(method, uri, body, myheaders, timeout)
     return res, err, req_debug
 end
 
-function _M.http_head(uri, myheaders, timeout)
-    return http_req_3xx("HEAD", uri, nil, myheaders, timeout)
+function _M.http_head(uri, myheaders, timeout, ssl_verify
+    return http_req_3xx("HEAD", uri, nil, myheaders, timeout, ssl_verify
 end
 
-function _M.http_get(uri, myheaders, timeout)
-    return http_req_3xx("GET", uri, nil, myheaders, timeout)
+function _M.http_get(uri, myheaders, timeout, ...)
+    return http_req_3xx("GET", uri, nil, myheaders, timeout, ssl_verify
 end
 
-function _M.http_del(uri, myheaders, timeout)
-    return http_req_3xx("DELETE", uri, nil, myheaders, timeout)
+function _M.http_del(uri, myheaders, timeout, ...)
+    return http_req_3xx("DELETE", uri, nil, myheaders, timeout, ssl_verify
 end
 
-function _M.http_post(uri, body, myheaders, timeout)
-    return http_req_3xx("POST", uri, body, myheaders, timeout)
+function _M.http_post(uri, body, myheaders, timeout, ...)
+    return http_req_3xx("POST", uri, body, myheaders, timeout, ssl_verify
 end
 
-function _M.http_put(uri,  body, myheaders, timeout)
-    return http_req_3xx("PUT", uri, body, myheaders, timeout)
+function _M.http_put(uri,  body, myheaders, timeout, ...)
+    return http_req_3xx("PUT", uri, body, myheaders, timeout, ssl_verify
 end
 
 -- 尝试从/etc/resolv.conf读取dns配置(如果有配置)。
