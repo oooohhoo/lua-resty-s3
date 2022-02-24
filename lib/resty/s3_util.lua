@@ -364,9 +364,11 @@ function _M.get_resolver_url(url)
     end
 
     local xurl = url
+    local protocol = "http"
     if string.sub(url, 1, 7) == "http://" then
         xurl = string.sub(url, 8)
     else if string.sub(url, 1, 8) == "https://" then
+        protocol = "https"
         xurl = string.sub(url, 9)
         end
     end
@@ -391,8 +393,8 @@ function _M.get_resolver_url(url)
             ngx.log(ngx.ERR, "dns_query(", host, ") failed!")
             return nil, "dns query failed for host '" .. host .. "' "
         end
-
-        local addr_full = "http://" .. addr
+        
+        local addr_full = protocol .. "://" .. addr
         if rest then
             addr_full = addr_full .. rest
         end
@@ -416,40 +418,48 @@ function _M.headerstr(headers)
     return table.concat(lines, " ")
 end
 
+<<<<<<< Updated upstream
 local function http_req(method, uri, body, myheaders, timeout, ssl_verify
     local uri, host = _M.get_resolver_url(uri)
     if uri == nil then
         return nil, host
     end
+=======
+local function http_req(method, uri, body, myheaders, timeout, ssl_verify)
+    -- local uri, host = _M.get_resolver_url(uri)
+    -- if uri == nil then
+    --     return nil, host
+    -- end
+>>>>>>> Stashed changes
 
-    if myheaders == nil then myheaders = _M.new_headers() end
+    -- if myheaders == nil then myheaders = _M.new_headers() end
 
-    if host ~= nil and myheaders["Host"] == nil then
-        myheaders["Host"] = host
-    end
+    -- if host ~= nil and myheaders["Host"] == nil then
+    --     myheaders["Host"] = host
+    -- end
 
     local timeout_str = "-"
     if timeout then
         timeout_str = tostring(timeout)
     end
     local req_debug = ""
-    -- if method == "PUT" or method == "POST" then
-    --     local debug_body = nil
-    --     local content_type = myheaders["Content-Type"]
-    --     if content_type == nil or _M.startswith(content_type, "text") then 
-    --         if string.len(body) < 1024 then
-    --             debug_body = body
-    --         else
-    --             debug_body = string.sub(body, 1, 1024)
-    --         end
-    --     else 
-    --         debug_body = "[[not text body: " .. tostring(content_type) .. "]]"
-    --     end
-    --     req_debug = "curl -v -X " .. method .. " " .. _M.headerstr(myheaders) .. " '" .. uri .. "' -d '" .. debug_body .. "' -o /dev/null"
-    -- else
-    --     body = nil
-    --     req_debug = "curl -v -X " .. method .. " " .. _M.headerstr(myheaders) .. " '" .. uri .. "' -o /dev/null"
-    -- end
+    if method == "PUT" or method == "POST" then
+        local debug_body = nil
+        local content_type = myheaders["Content-Type"]
+        -- if content_type == nil or _M.startswith(content_type, "text") then 
+        --     if string.len(body) < 1024 then
+        --         debug_body = body
+        --     else
+        --         debug_body = string.sub(body, 1, 1024)
+        --     end
+        -- else 
+        debug_body = "[[not text body: " .. tostring(content_type) .. "]]"
+        -- end
+        req_debug = "curl -v -X " .. method .. " " .. _M.headerstr(myheaders) .. " '" .. uri .. "' -d '" .. debug_body .. "' -o /dev/null"
+    else
+        body = nil
+        req_debug = "curl -v -X " .. method .. " " .. _M.headerstr(myheaders) .. " '" .. uri .. "' -o /dev/null"
+    end
     ngx.log(ngx.INFO, method, " REQUEST [ ", req_debug, " ] timeout:", timeout_str)
     local httpc = http.new()
     if timeout then
