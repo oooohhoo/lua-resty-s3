@@ -506,7 +506,7 @@ end
 
 
 --支持302的请求
-local function http_req_3xx(method, uri, body, myheaders, timeout, ssl_verify
+local function http_req_3xx(method, uri, body, myheaders, timeout, ssl_verify)
     local req_uri = uri
     local err = ""
     local jump_times = 0
@@ -564,27 +564,27 @@ local function http_req_3xx(method, uri, body, myheaders, timeout, ssl_verify
     return res, err, req_debug
 end
 
-function _M.http_head(uri, myheaders, timeout, ssl_verify
-    return http_req_3xx("HEAD", uri, nil, myheaders, timeout, ssl_verify
+function _M.http_head(uri, myheaders, timeout, ssl_verify)
+    return http_req_3xx("HEAD", uri, nil, myheaders, timeout, ssl_verify)
 end
 
-function _M.http_get(uri, myheaders, timeout, ...)
-    return http_req_3xx("GET", uri, nil, myheaders, timeout, ssl_verify
+function _M.http_get(uri, myheaders, timeout, ssl_verify)
+    return http_req_3xx("GET", uri, nil, myheaders, timeout, ssl_verify)
 end
 
-function _M.http_del(uri, myheaders, timeout, ...)
-    return http_req_3xx("DELETE", uri, nil, myheaders, timeout, ssl_verify
+function _M.http_del(uri, myheaders, timeout, ssl_verify)
+    return http_req_3xx("DELETE", uri, nil, myheaders, timeout, ssl_verify)
 end
 
-function _M.http_post(uri, body, myheaders, timeout, ...)
-    return http_req_3xx("POST", uri, body, myheaders, timeout, ssl_verify
+function _M.http_post(uri, body, myheaders, timeout, ssl_verify)
+    return http_req_3xx("POST", uri, body, myheaders, timeout, ssl_verify)
 end
 
-function _M.http_put(uri,  body, myheaders, timeout, ...)
-    return http_req_3xx("PUT", uri, body, myheaders, timeout, ssl_verify
+function _M.http_put(uri,  body, myheaders, timeout, ssl_verify)
+    return http_req_3xx("PUT", uri, body, myheaders, timeout, ssl_verify)
 end
 
 -- 尝试从/etc/resolv.conf读取dns配置(如果有配置)。
-_M.dns_init()
+-- _M.dns_init()
 
 return _M
