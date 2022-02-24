@@ -585,6 +585,6 @@ function _M.http_put(uri,  body, myheaders, timeout, ssl_verify)
 end
 
 -- 尝试从/etc/resolv.conf读取dns配置(如果有配置)。
-_M.dns_init()
+-- _M.dns_init()
 
 return _M
