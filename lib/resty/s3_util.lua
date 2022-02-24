@@ -418,19 +418,11 @@ function _M.headerstr(headers)
     return table.concat(lines, " ")
 end
 
-<<<<<<< Updated upstream
-local function http_req(method, uri, body, myheaders, timeout, ssl_verify
-    local uri, host = _M.get_resolver_url(uri)
-    if uri == nil then
-        return nil, host
-    end
-=======
 local function http_req(method, uri, body, myheaders, timeout, ssl_verify)
     -- local uri, host = _M.get_resolver_url(uri)
     -- if uri == nil then
     --     return nil, host
     -- end
->>>>>>> Stashed changes
 
     -- if myheaders == nil then myheaders = _M.new_headers() end
 
