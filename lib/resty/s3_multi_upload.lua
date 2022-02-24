@@ -12,7 +12,7 @@ startResult is a table that return by start multi upload.
 "Bucket":"the-bucket","Key":"the/file/path","UploadId":"the-upload-id"}
 ]]
 
-function _M:new(auth, host, timeout, startResult)
+function _M:new(auth, host, timeout, ssl, ssl_verify, startResult)
 	local bucket = startResult.Bucket
 	local key = startResult.Key
     local upload_id = startResult.UploadId
@@ -21,19 +21,19 @@ function _M:new(auth, host, timeout, startResult)
         add_bucket_to_uri = true
         key = bucket .. "/" .. key
     end
-    return setmetatable({ auth=auth, bucket=bucket, key=key, upload_id = upload_id, host=host, add_bucket_to_uri=add_bucket_to_uri, timeout=timeout, parts={}}, mt)
+    return setmetatable({ auth=auth, bucket=bucket, key=key, upload_id = upload_id, host=host, add_bucket_to_uri=add_bucket_to_uri, timeout=timeout, ssl=ssl, ssl_verify=ssl_verify, parts={}}, mt)
 end
 
-function _M:upload(part_number, value)
+function _M:upload(part_number, value, myheaders)
     local short_uri = '/' .. self.key .. "?partNumber=" .. tostring(part_number) .. "&uploadId=" .. self.upload_id
-    local myheaders = util.new_headers()
+    -- local myheaders = util.new_headers()
     local authorization = self.auth:authorization_v4("PUT", short_uri, myheaders, value)
     -- 默认该模块为上传失败。
     self.parts[part_number] = "error"
-    local url = "http://" .. self.host .. short_uri
+    local url = "https://" .. self.host .. short_uri
     ngx.log(ngx.INFO, "----- url: ", url)
     -- TODO: check authorization.
-    local res, err, req_debug = util.http_put(url, value, myheaders, self.timeout)
+    local res, err, req_debug = util.http_put(url, value, myheaders, self.timeout, self.ssl_verify)
     if not res then
         ngx.log(ngx.ERR, "fail request to aws s3 service: [ ", req_debug, " ] err: ", err)
         return false, "request to aws s3 failed", 500
@@ -55,32 +55,34 @@ function _M:upload(part_number, value)
     ngx.log(ngx.INFO, "aws return partNumber [", part_number, "] ETag [", ETag, "]")
     self.parts[part_number] = ETag
 
-    return true, ETag
+    return true, res
 end
 
-function _M:complete()
+function _M:complete(headers,body)
     local short_uri = '/' .. self.key .. "?uploadId=" .. self.upload_id
 
-    local parts = {}
-    for part_number, ETag in ipairs(self.parts) do 
-    	if ETag == "error" then
-    		ngx.log(ngx.ERR, "part [", part_number, "] upload failed! you must be reupload this part or abort the whole upload")
-    		return false, "some-part-failed"
-    	end
-    	local part = {PartNumber=part_number, ETag=ETag}
-    	table.insert(parts, part)
+    if not body then
+        local parts = {}
+        for part_number, ETag in ipairs(self.parts) do 
+            if ETag == "error" then
+                ngx.log(ngx.ERR, "part [", part_number, "] upload failed! you must be reupload this part or abort the whole upload")
+                return false, "some-part-failed"
+            end
+            local part = {PartNumber=part_number, ETag=ETag}
+            table.insert(parts, part)
+        end
+        local body = {CompleteMultipartUpload={Part=parts}}
+        body = xml.dumps(body)
+        ngx.log(ngx.INFO, "---- complete body ...[", body, "]")
     end
-    local body = {CompleteMultipartUpload={Part=parts}}
-    body = xml.dumps(body)
-    ngx.log(ngx.INFO, "---- complete body ...[", body, "]")
 
-    local myheaders = util.new_headers()
+    local myheaders = headers or util.new_headers()
     local authorization = self.auth:authorization_v4("POST", short_uri, myheaders, body)
 
-    local url = "http://" .. self.host .. short_uri
+    local url = "https://" .. self.host .. short_uri
     ngx.log(ngx.INFO, "----- url: ", url)
     -- TODO: check authorization.
-    local res, err, req_debug = util.http_post(url, body, myheaders, self.timeout)
+    local res, err, req_debug = util.http_post(url, body, myheaders, self.timeout, self.ssl_verify)
     if not res then
         ngx.log(ngx.ERR, "fail request to aws s3 service: [ ", req_debug, " ] err: ", err)
         return false, "request to aws s3 failed", 500
@@ -97,7 +99,7 @@ function _M:complete()
         return false, "xml-invalid", 500
     end
 
-    return true, doc
+    return true, res
 end
 
 function _M:abort()

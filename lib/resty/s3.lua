@@ -39,7 +39,7 @@ function _M:new(aws_access_key, aws_secret_key, aws_bucket, args)
 
     local timeout = 10 * 1000
     local aws_region = "us-east-1"
-    local ssl = true
+    local ssl = false
     local ssl_verify = true
     if args and type(args) == 'table' then
         if args.timeout then
@@ -51,7 +51,7 @@ function _M:new(aws_access_key, aws_secret_key, aws_bucket, args)
         if args.ssl then
             ssl = args.ssl
         end
-        if args.ssl_verify then
+        if args.ssl_verify ~= ssl_verify then
             ssl_verify = args.ssl_verify
         end
     end
@@ -146,7 +146,8 @@ end
 function _M:put(key, body, headers)
     local short_uri = self:get_short_uri(key)
     headers = headers or util.new_headers()
-    -- local authorization = self.auth:authorization_v4("PUT", short_uri, headers, value)
+    headers['Host'] = self.host
+    local authorization = self.auth:authorization_v4("PUT", short_uri, headers, value)
     local url = self.host .. util.uri_encode(short_uri, false)
     if self.ssl then
         url = "https://" .. url
@@ -171,7 +172,7 @@ function _M:put(key, body, headers)
 
     ngx.log(ngx.INFO, "aws returned: body: [", res.body, "]")
 
-    return true, res.body
+    return true, res
 end
 
 -- https://docs.aws.amazon.com/AmazonS3/latest/API/API_CopyObject.html
