@@ -60,7 +60,7 @@ if schema == "http" then
     ssl = false
 end
 
-local s3 = awss3:new(key, secret, bucket, {timeout=HTTP_TIMEOUT, host=host, ssl=ssl, ssl_verify=SSL_VERIFY, aws_region=region})
+local s3 = awss3:new(key, secret, bucket, {timeout=HTTP_TIMEOUT, host=host..":"..port, ssl=ssl, ssl_verify=SSL_VERIFY, aws_region=region})
 
 local s3_req_header = {}
 s3_req_header["Content-Length"] = ngx.req.get_headers()["Content-Length"]
@@ -71,12 +71,12 @@ local req_reader = httpc:get_client_body_reader()
 
 local ok, s3_res = s3:put(file_key, req_reader, s3_req_header)
 if not ok then
-    ngx.log(ngx.ERR, "upload [" .. file_key .. "] direct to s3 failed! Response: ", cjson.encode(s3_res))
+    ngx.log(ngx.ERR, "upload [" .. file_key .. "] direct to s3 failed! Response Header: ", cjson.encode(s3_res.headers))
     ngx.status = ngx.HTTP_INTERNAL_SERVER_ERROR
     return
 end
 
-ngx.log(debug, "S3 Response", cjson.encode(s3_res))
+ngx.log(ngx.DEBUG, "S3 Response Header: ", cjson.encode(s3_res.headers))
 
 -- 上传后oc逻辑处理
 res = ngx.location.capture(
