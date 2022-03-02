@@ -24,7 +24,7 @@ end
 local get_bucket_region = nil
 
 local _M = new_tab(0, 100)
-_M._VERSION = '0.03'
+_M._VERSION = '0.04'
 
 local mt = { __index = _M }
 
@@ -147,7 +147,7 @@ function _M:put(key, body, headers)
     local short_uri = self:get_short_uri(key)
     headers = headers or util.new_headers()
     headers['Host'] = self.host
-    local authorization = self.auth:authorization_v4("PUT", short_uri, headers, value)
+    local authorization = self.auth:authorization_v4("PUT", short_uri, headers, body)
     local url = self.host .. util.uri_encode(short_uri, false)
     if self.ssl then
         url = "https://" .. url

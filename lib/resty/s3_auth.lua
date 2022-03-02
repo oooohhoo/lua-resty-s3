@@ -295,7 +295,7 @@ function _M:sign_v4(method, url, headers, body, date, time)
     local content_sha256 = headers["x-amz-content-sha256"]
     local is_form_urlencoded = content_type ~= nil and startswith(content_type, "application/x-www-form-urlencoded")
     if content_sha256 == nil then
-        if is_form_urlencoded  or type(body) == "function" then
+        if is_form_urlencoded then
             content_sha256 = sha2.sha256("")
         else
             content_sha256 = sha2.sha256(body or "")
@@ -324,8 +324,11 @@ end
 
 function _M:authorization_v4(method, url, headers, body)
     local date, time, datetime = self.datetime_cb()
-    -- local content_sha256 = sha2.sha256(body or "")
-    -- headers["x-amz-content-sha256"] = content_sha256
+    if type(body) == "function" then
+        headers["x-amz-content-sha256"] = 'UNSIGNED-PAYLOAD'
+    else
+        headers["x-amz-content-sha256"] = sha2.sha256(body or "")
+    end
     headers["x-amz-date"] = datetime
     return _M.authorization_v4_internal(self, method, url, headers)
 end
