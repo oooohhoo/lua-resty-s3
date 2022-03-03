@@ -324,11 +324,14 @@ end
 
 function _M:authorization_v4(method, url, headers, body)
     local date, time, datetime = self.datetime_cb()
-    if type(body) == "function" then
-        headers["x-amz-content-sha256"] = 'UNSIGNED-PAYLOAD'
-    else
-        headers["x-amz-content-sha256"] = sha2.sha256(body or "")
+    if headers["x-amz-content-sha256"] == nil then
+        if type(body) == "function" then
+            headers["x-amz-content-sha256"] = 'UNSIGNED-PAYLOAD'
+        else
+            headers["x-amz-content-sha256"] = sha2.sha256(body or "")
+        end
     end
+    
     headers["x-amz-date"] = datetime
     return _M.authorization_v4_internal(self, method, url, headers)
 end
