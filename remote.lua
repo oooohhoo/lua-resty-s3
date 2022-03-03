@@ -17,25 +17,15 @@ end
 
 local res
 -- 上传前oc逻辑处理
-if ngx.req.get_headers()["OC-CHUNKED"] then
-    res = ngx.location.capture(
-        redirect_key .. path,
-        {
-            method = ngx.HTTP_PUT,
-            args = ngx.req.get_uri_args(),
-        }
-    )
-else
-    res = ngx.location.capture(
-        redirect_key .. path,
-        {
-            method = ngx.HTTP_PUT,
-            args = ngx.req.get_uri_args(),
-            vars = { before_upload = "true", file_size = ngx.req.get_headers()["Content-Length"] },
-            body = ""
-        }
-    )
-end
+res = ngx.location.capture(
+    redirect_key .. path,
+    {
+        method = ngx.HTTP_PUT,
+        args = ngx.req.get_uri_args(),
+        vars = { before_upload = "true", file_size = ngx.req.get_headers()["Content-Length"] },
+        body = ""
+    }
+)
 
 ngx.log(ngx.DEBUG, "Before Upload Response", cjson.encode(res))
 if res.status ~= ngx.HTTP_ACCEPTED  then
@@ -60,7 +50,10 @@ if schema == "http" then
     ssl = false
 end
 
-local s3 = awss3:new(key, secret, bucket, {timeout=HTTP_TIMEOUT, host=host..":"..port, ssl=ssl, ssl_verify=SSL_VERIFY, aws_region=region})
+if port then
+    host = host .. ":" .. port
+
+local s3 = awss3:new(key, secret, bucket, {timeout=HTTP_TIMEOUT, host=host, ssl=ssl, ssl_verify=SSL_VERIFY, aws_region=region})
 
 local s3_req_header = {}
 s3_req_header["Content-Length"] = ngx.req.get_headers()["Content-Length"]
@@ -69,14 +62,36 @@ s3_req_header["x-amz-storage-class"] = "STANDARD"
 
 local req_reader = httpc:get_client_body_reader()
 
-local ok, s3_res = s3:put(file_key, req_reader, s3_req_header)
-if not ok then
-    ngx.log(ngx.ERR, "upload [" .. file_key .. "] direct to s3 failed! Response Header: ", cjson.encode(s3_res.headers))
-    ngx.status = ngx.HTTP_INTERNAL_SERVER_ERROR
-    return
-end
+if ngx.req.get_headers()["oc-chunked"] == "1" then
+    local upload_id = res.header["Upload-Id"]
+    local uploadDetail = {}
+    uploadDetail["Bucket"] = bucket
+    uploadDetail["Key"] = file_key
+    uploadDetail["UploadId"] = upload_id
 
-ngx.log(ngx.DEBUG, "S3 Response Header: ", cjson.encode(s3_res.headers))
+    local uploader = s3_multi_upload:new(s3.auth, s3.host, s3.timeout, uploadResult)
+
+    transfer_id,chunk_size,chunk_index = string.match(ngx.var.uri,".+%-chunking%-(%d+)%-(%d+)%-(%d+)$")
+    local ok, upload_res = uploader:upload(chunk_index + 1 ,req_reader, new_headers)
+    if not ok then
+        ngx.log(ngx.ERR,"upload [" .. file_key .. "] part to s3 failed! ")
+        ngx.status = ngx.HTTP_INTERNAL_SERVER_ERROR
+        return
+    end
+
+    if chunk_index + 1 < chunk_size then
+        return
+    end
+else
+    local ok, s3_res = s3:put(file_key, req_reader, s3_req_header)
+    if not ok then
+        ngx.log(ngx.ERR, "upload [" .. file_key .. "] direct to s3 failed! Response Header: ", cjson.encode(s3_res.headers))
+        ngx.status = ngx.HTTP_INTERNAL_SERVER_ERROR
+        return
+    end
+
+    ngx.log(ngx.DEBUG, "S3 Response Header: ", cjson.encode(s3_res.headers))
+end
 
 -- 上传后oc逻辑处理
 res = ngx.location.capture(
