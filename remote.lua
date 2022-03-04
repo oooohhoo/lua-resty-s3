@@ -2,6 +2,7 @@ local cjson = require "cjson"
 local httpc = require("resty.http").new()
 local awss3 = require "resty.s3"
 local util = require "resty.s3_util"
+local s3_multi_upload = require "resty.s3_multi_upload"
 
 local HTTP_TIMEOUT = 1000*60*60
 local SSL_VERIFY = true
@@ -50,8 +51,9 @@ if schema == "http" then
     ssl = false
 end
 
-if port then
-    host = host .. ":" .. port
+if port and port ~= 80 and port ~= 443 then
+   host = host .. ":" .. port
+end
 
 local s3 = awss3:new(key, secret, bucket, {timeout=HTTP_TIMEOUT, host=host, ssl=ssl, ssl_verify=SSL_VERIFY, aws_region=region})
 
@@ -69,17 +71,17 @@ if ngx.req.get_headers()["oc-chunked"] == "1" then
     uploadDetail["Key"] = file_key
     uploadDetail["UploadId"] = upload_id
 
-    local uploader = s3_multi_upload:new(s3.auth, s3.host, s3.timeout, uploadResult)
+    local uploader = s3_multi_upload:new(s3.auth, s3.host, s3.timeout, s3.ssl, s3.ssl_verify, uploadDetail)
 
-    transfer_id,chunk_size,chunk_index = string.match(ngx.var.uri,".+%-chunking%-(%d+)%-(%d+)%-(%d+)$")
-    local ok, upload_res = uploader:upload(chunk_index + 1 ,req_reader, new_headers)
+    local transfer_id,chunk_size,chunk_index = string.match(ngx.var.uri,".+%-chunking%-(%d+)%-(%d+)%-(%d+)$")
+    local ok, upload_res = uploader:upload(chunk_index + 1 ,req_reader, s3_req_header)
     if not ok then
         ngx.log(ngx.ERR,"upload [" .. file_key .. "] part to s3 failed! ")
         ngx.status = ngx.HTTP_INTERNAL_SERVER_ERROR
         return
     end
 
-    if chunk_index + 1 < chunk_size then
+    if chunk_index + 1 < tonumber(chunk_size) then
         return
     end
 else
