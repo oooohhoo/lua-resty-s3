@@ -30,7 +30,12 @@ function _M:upload(part_number, value, myheaders)
     local authorization = self.auth:authorization_v4("PUT", short_uri, myheaders, value)
     -- 默认该模块为上传失败。
     self.parts[part_number] = "error"
-    local url = "https://" .. self.host .. short_uri
+    local url= self.host .. short_uri
+    if self.ssl then
+        url = "https://" .. url
+    else
+        url = "http://" .. url
+    end
     ngx.log(ngx.INFO, "----- url: ", url)
     -- TODO: check authorization.
     local res, err, req_debug = util.http_put(url, value, myheaders, self.timeout, self.ssl_verify)
