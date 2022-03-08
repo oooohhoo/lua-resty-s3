@@ -10,8 +10,6 @@ local SSL_VERIFY = true
 local redirect_key = "/remote-redirected"
 local path = string.sub(ngx.var.uri,12)
 
-ngx.log(ngx.DEBUG, "Original Request Headers: ", cjson.encode(ngx.req.get_headers()))
-
 if ngx.req.get_headers()["Content-Type"] == nil then
     ngx.req.set_header("Content-Type", "application/octet-stream")
 end
@@ -28,7 +26,6 @@ res = ngx.location.capture(
     }
 )
 
-ngx.log(ngx.DEBUG, "Before Upload Response", cjson.encode(res))
 if res.status ~= ngx.HTTP_ACCEPTED  then
     ngx.status = res.status
     ngx.header = res.header
@@ -91,8 +88,6 @@ else
         ngx.status = ngx.HTTP_INTERNAL_SERVER_ERROR
         return
     end
-
-    ngx.log(ngx.DEBUG, "S3 Response Header: ", cjson.encode(s3_res.headers))
 end
 
 -- 上传后oc逻辑处理
