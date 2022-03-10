@@ -84,7 +84,13 @@ function _M:complete(headers,body)
     local myheaders = headers or util.new_headers()
     local authorization = self.auth:authorization_v4("POST", short_uri, myheaders, body)
 
-    local url = "https://" .. self.host .. short_uri
+    local url = self.host .. short_uri
+    if self.ssl then
+        url = "https://" .. url
+    else
+        url = "http://" .. url
+    end 
+    
     ngx.log(ngx.INFO, "----- url: ", url)
     -- TODO: check authorization.
     local res, err, req_debug = util.http_post(url, body, myheaders, self.timeout, self.ssl_verify)
