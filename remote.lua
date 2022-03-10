@@ -6,12 +6,22 @@ local s3_multi_upload = require "resty.s3_multi_upload"
 
 local HTTP_TIMEOUT = 1000*60*60
 local SSL_VERIFY = true
+local CHUNK_SIZE = 100*1024*1024
+-- 注意：该值必须能够整除 CHUNK_SIZE，否则分块上传会出错
+local BUFFER_SIZE = 65536
 
 local redirect_key = "/remote-redirected"
 local path = string.sub(ngx.var.uri,12)
 
 if ngx.req.get_headers()["Content-Type"] == nil then
     ngx.req.set_header("Content-Type", "application/octet-stream")
+end
+
+function get_s3_header()
+    local header = {}
+    header["Content-Type"] = ngx.req.get_headers()["Content-Type"]
+    header["x-amz-storage-class"] = "STANDARD"
+    return header
 end
 
 local res
@@ -54,14 +64,13 @@ end
 
 local s3 = awss3:new(key, secret, bucket, {timeout=HTTP_TIMEOUT, host=host, ssl=ssl, ssl_verify=SSL_VERIFY, aws_region=region})
 
-local s3_req_header = {}
-s3_req_header["Content-Length"] = ngx.req.get_headers()["Content-Length"]
-s3_req_header["Content-Type"] = ngx.req.get_headers()["Content-Type"]
-s3_req_header["x-amz-storage-class"] = "STANDARD"
+local content_length = ngx.req.get_headers()["Content-Length"]
 
-local req_reader = httpc:get_client_body_reader()
+local req_reader = httpc:get_client_body_reader(BUFFER_SIZE)
 
 if ngx.req.get_headers()["oc-chunked"] == "1" then
+    local s3_req_header = get_s3_header()
+    s3_req_header["Content-Length"] = content_length
     local upload_id = res.header["Upload-Id"]
     local uploadDetail = {}
     uploadDetail["Bucket"] = bucket
@@ -82,11 +91,76 @@ if ngx.req.get_headers()["oc-chunked"] == "1" then
         return
     end
 else
-    local ok, s3_res = s3:put(file_key, req_reader, s3_req_header)
-    if not ok then
-        ngx.log(ngx.ERR, "upload [" .. file_key .. "] direct to s3 failed! Response Header: ", cjson.encode(s3_res.headers))
-        ngx.status = ngx.HTTP_INTERNAL_SERVER_ERROR
-        return
+    if tonumber(content_length) >= 5 * 1024 * 1024 * 1024 then
+        local co_wrap = function(func)
+            local co = coroutine.create(func)
+            if not co then
+                return nil, "could not create coroutine"
+            else
+                return function(...)
+                    if coroutine.status(co) == "suspended" then
+                        return select(2, coroutine.resume(co, ...))
+                    else
+                        return nil, "can't resume a " .. coroutine.status(co) .. " coroutine"
+                    end
+                end
+            end
+        end
+
+        local s3_req_header = get_s3_header()
+        s3_req_header['Content-Length'] = 0
+        local ok, uploader = s3:start_multi_upload(file_key, s3_req_header)
+        if not ok then
+            ngx.log(ngx.ERR,"start_multi_upload " .. cjson.encode({key=file_key, myheaders=s3_req_header}) .. "] failed! resp:" .. tostring(uploader))
+            ngx.status = ngx.HTTP_INTERNAL_SERVER_ERROR
+            return
+        end
+
+        local total_part_number = math.floor(content_length / CHUNK_SIZE)
+        if content_length % CHUNK_SIZE > 0 then
+            total_part_number = total_part_number + 1
+        end
+        local part_number = 1
+        
+        while part_number <= total_part_number do
+            local chunk_left = CHUNK_SIZE
+            if part_number == total_part_number then
+                chunk_left = content_length % CHUNK_SIZE
+            end
+            s3_req_header = get_s3_header()
+            s3_req_header["Host"] = s3.host
+            s3_req_header['Content-Length'] = chunk_left
+            local chunk_reader = co_wrap(function()
+                while chunk_left > 0 do
+                    coroutine.yield(req_reader(BUFFER_SIZE))
+                    chunk_left = chunk_left - BUFFER_SIZE
+                end
+            end)
+            local ok, upload_res = uploader:upload(part_number, chunk_reader, s3_req_header)
+            if not ok then
+                ngx.log(ngx.ERR,"upload [" .. file_key .. "] part to s3 failed! resp:" .. tostring(upload_res))
+                ngx.status = ngx.HTTP_INTERNAL_SERVER_ERROR
+                return
+            end
+            part_number = part_number + 1
+        end
+        s3_req_header = get_s3_header()
+        s3_req_header["Host"] = s3.host
+        local ok, complete_res = uploader:complete()
+        if not ok then
+            ngx.log(ngx.ERR,"uploader:complete " .. cjson.encode({key=key, part_number=part_number, value=value}) .. "] failed! resp:" .. tostring(complete_res))
+            ngx.status = ngx.HTTP_INTERNAL_SERVER_ERROR
+            return
+        end
+    else
+        local s3_req_header = get_s3_header()
+        s3_req_header["Content-Length"] = content_length
+        local ok, s3_res = s3:put(file_key, req_reader, s3_req_header)
+        if not ok then
+            ngx.log(ngx.ERR, "upload [" .. file_key .. "] direct to s3 failed! Response Header: ", cjson.encode(s3_res.headers))
+            ngx.status = ngx.HTTP_INTERNAL_SERVER_ERROR
+            return
+        end
     end
 end
 
