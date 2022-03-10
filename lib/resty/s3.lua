@@ -317,9 +317,15 @@ end
 -- http://docs.aws.amazon.com/AmazonS3/latest/API/mpUploadInitiate.html
 function _M:start_multi_upload(key, myheaders)
     local short_uri = self:get_short_uri(key)
-    local url = "http://" .. self.host .. short_uri .. "?uploads"
+    local url = self.host .. util.uri_encode(short_uri, false) .. "?uploads"
+    if self.ssl then
+        url = "https://" .. url
+    else
+        url = "http://" .. url
+    end
 
     myheaders = myheaders or util.new_headers()
+    myheaders['Host'] = self.host
     local authorization = self.auth:authorization_v4("POST", url, myheaders, nil)
     ngx.log(ngx.INFO, "headers [", cjson.encode(myheaders), "]")
 
@@ -347,7 +353,7 @@ function _M:start_multi_upload(key, myheaders)
     end
     local uploadResult = doc.InitiateMultipartUploadResult
 
-    local upload = s3_multi_upload:new(self.auth, self.host, self.timeout, uploadResult)
+    local upload = s3_multi_upload:new(self.auth, self.host, self.timeout, self.ssl, self.ssl_verify, uploadResult)
     return true, upload
 end
 
