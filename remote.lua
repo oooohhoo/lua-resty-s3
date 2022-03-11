@@ -6,6 +6,7 @@ local s3_multi_upload = require "resty.s3_multi_upload"
 
 local HTTP_TIMEOUT = 1000*60*60
 local SSL_VERIFY = true
+local AUTO_CHUNK_SIZE = 1024*1024*1024
 local CHUNK_SIZE = 100*1024*1024
 -- 注意：该值必须能够整除 CHUNK_SIZE，否则分块上传会出错
 local BUFFER_SIZE = 65536
@@ -91,7 +92,7 @@ if ngx.req.get_headers()["oc-chunked"] == "1" then
         return
     end
 else
-    if tonumber(content_length) >= 5 * 1024 * 1024 * 1024 then
+    if tonumber(content_length) >= AUTO_CHUNK_SIZE then
         local co_wrap = function(func)
             local co = coroutine.create(func)
             if not co then
@@ -146,7 +147,7 @@ else
         end
         s3_req_header = get_s3_header()
         s3_req_header["Host"] = s3.host
-        local ok, complete_res = uploader:complete()
+        local ok, complete_res = uploader:complete(s3_req_header)
         if not ok then
             ngx.log(ngx.ERR,"uploader:complete " .. cjson.encode({key=key, part_number=part_number, value=value}) .. "] failed! resp:" .. tostring(complete_res))
             ngx.status = ngx.HTTP_INTERNAL_SERVER_ERROR
