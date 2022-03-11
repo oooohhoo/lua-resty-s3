@@ -76,12 +76,13 @@ function _M:complete(headers,body)
             local part = {PartNumber=part_number, ETag=ETag}
             table.insert(parts, part)
         end
-        local body = {CompleteMultipartUpload={Part=parts}}
+        body = {CompleteMultipartUpload={Part=parts}}
         body = xml.dumps(body)
         ngx.log(ngx.INFO, "---- complete body ...[", body, "]")
     end
 
     local myheaders = headers or util.new_headers()
+    myheaders["Content-Type"] = "application/xml"
     local authorization = self.auth:authorization_v4("POST", short_uri, myheaders, body)
 
     local url = self.host .. short_uri
