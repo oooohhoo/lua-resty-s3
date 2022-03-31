@@ -25,20 +25,6 @@ function get_s3_header()
     return header
 end
 
-function after_upload(new_file, file_key)
-    res = ngx.location.capture(
-        redirect_key .. path,
-        {
-            method = ngx.HTTP_PUT,
-            args = ngx.req.get_uri_args(),
-            vars = { after_upload = "true", new_file = new_file, file_key=file_key},
-            body = ""
-        }
-    )
-    ngx.status = res.status
-    ngx.header = res.header
-end
-
 local res
 -- 上传前oc逻辑处理
 res = ngx.location.capture(
@@ -62,7 +48,17 @@ local file_key = res.header["S3-File-Key"]
 local new_file = res.header["OC-New-File"]
 
 if s3_storage == "0" then
-    after_upload(new_file,file_key)
+    ngx.req.read_body()
+    res = ngx.location.capture(
+        redirect_key .. path,
+        {
+            method = ngx.HTTP_PUT,
+            args = ngx.req.get_uri_args(),
+            vars = { after_upload = "true", new_file = new_file, file_key=file_key}
+        }
+    )
+    ngx.status = res.status
+    ngx.header = res.header
     return
 end
 
@@ -188,4 +184,14 @@ else
 end
 
 -- 上传后oc逻辑处理
-after_upload(new_file,file_key)
+res = ngx.location.capture(
+        redirect_key .. path,
+        {
+            method = ngx.HTTP_PUT,
+            args = ngx.req.get_uri_args(),
+            vars = { after_upload = "true", new_file = new_file, file_key=file_key},
+            body = ""
+        }
+    )
+ngx.status = res.status
+ngx.header = res.header
