@@ -18,7 +18,7 @@ if ngx.req.get_headers()["Content-Type"] == nil then
     ngx.req.set_header("Content-Type", "application/octet-stream")
 end
 
-function get_s3_header()
+local function get_s3_header()
     local header = {}
     header["Content-Type"] = ngx.req.get_headers()["Content-Type"]
     header["x-amz-storage-class"] = "STANDARD"

@@ -27,6 +27,9 @@ end
 function _M:upload(part_number, value, myheaders)
     local short_uri = '/' .. self.key .. "?partNumber=" .. tostring(part_number) .. "&uploadId=" .. self.upload_id
     -- local myheaders = util.new_headers()
+    if not myheaders["Host"] then
+        myheaders["Host"] = self.host
+    end
     local authorization = self.auth:authorization_v4("PUT", short_uri, myheaders, value)
     -- 默认该模块为上传失败。
     self.parts[part_number] = "error"
@@ -83,6 +86,9 @@ function _M:complete(headers,body)
 
     local myheaders = headers or util.new_headers()
     myheaders["Content-Type"] = "application/xml"
+    if not myheaders["Host"] then
+        myheaders["Host"] = self.host
+    end
     local authorization = self.auth:authorization_v4("POST", short_uri, myheaders, body)
 
     local url = self.host .. short_uri
