@@ -25,6 +25,19 @@ local function get_s3_header()
     return header
 end
 
+local function insufficent_storage_check(res_body, res_status)
+    local doc, err = xml.loads(res_body)
+    if doc == nil or type(doc.Error) ~= "table" then
+        ngx.status = ngx.HTTP_INTERNAL_SERVER_ERROR
+        return
+    end
+    if (res_status == 400 and doc.Error.Code == "XMinioAdminBucketQuotaExceeded") or (res_status == 403 and doc.Error.Code == "QuotaExceeded") then
+        ngx.status = ngx.HTTP_INSUFFICIENT_STORAGE
+        return
+    end
+    ngx.status = ngx.HTTP_INTERNAL_SERVER_ERROR
+end
+
 local res
 -- 上传前oc逻辑处理
 res = ngx.location.capture(
@@ -99,10 +112,10 @@ if ngx.req.get_headers()["oc-chunked"] == "1" then
     local uploader = s3_multi_upload:new(s3.auth, s3.host, s3.timeout, s3.ssl, s3.ssl_verify, uploadDetail)
 
     local transfer_id,chunk_size,chunk_index = string.match(ngx.var.uri,".+%-chunking%-(%d+)%-(%d+)%-(%d+)$")
-    local ok, upload_res = uploader:upload(chunk_index + 1 ,req_reader, s3_req_header)
+    local ok, upload_res, res_status = uploader:upload(chunk_index + 1 ,req_reader, s3_req_header)
     if not ok then
         ngx.log(ngx.ERR,"upload [" .. file_key .. "] part to s3 failed! ")
-        ngx.status = ngx.HTTP_INTERNAL_SERVER_ERROR
+        insufficent_storage_check(upload_res,res_status)
         return
     end
 
@@ -128,10 +141,10 @@ else
 
         local s3_req_header = get_s3_header()
         s3_req_header['Content-Length'] = 0
-        local ok, uploader = s3:start_multi_upload(file_key, s3_req_header)
+        local ok, uploader, res_status = s3:start_multi_upload(file_key, s3_req_header)
         if not ok then
             ngx.log(ngx.ERR,"start_multi_upload " .. cjson.encode({key=file_key, myheaders=s3_req_header}) .. "] failed! resp:" .. tostring(uploader))
-            ngx.status = ngx.HTTP_INTERNAL_SERVER_ERROR
+            insufficent_storage_check(uploader,res_status)
             return
         end
 
@@ -155,29 +168,29 @@ else
                     chunk_left = chunk_left - BUFFER_SIZE
                 end
             end)
-            local ok, upload_res = uploader:upload(part_number, chunk_reader, s3_req_header)
+            local ok, upload_res, res_status = uploader:upload(part_number, chunk_reader, s3_req_header)
             if not ok then
                 ngx.log(ngx.ERR,"upload [" .. file_key .. "] part to s3 failed! resp:" .. tostring(upload_res))
-                ngx.status = ngx.HTTP_INTERNAL_SERVER_ERROR
+                insufficent_storage_check(upload_res,res_status)
                 return
             end
             part_number = part_number + 1
         end
         s3_req_header = get_s3_header()
         s3_req_header["Host"] = s3.host
-        local ok, complete_res = uploader:complete(s3_req_header)
+        local ok, complete_res, res_status = uploader:complete(s3_req_header)
         if not ok then
             ngx.log(ngx.ERR,"uploader:complete " .. cjson.encode({key=key, part_number=part_number, value=value}) .. "] failed! resp:" .. tostring(complete_res))
-            ngx.status = ngx.HTTP_INTERNAL_SERVER_ERROR
+            insufficent_storage_check(complete_res,res_status)
             return
         end
     else
         local s3_req_header = get_s3_header()
         s3_req_header["Content-Length"] = content_length
-        local ok, s3_res = s3:put(file_key, req_reader, s3_req_header)
+        local ok, s3_res_body, res_status = s3:put(file_key, req_reader, s3_req_header)
         if not ok then
-            ngx.log(ngx.ERR, "upload [" .. file_key .. "] direct to s3 failed! Response Header: ", cjson.encode(s3_res.headers))
-            ngx.status = ngx.HTTP_INTERNAL_SERVER_ERROR
+            ngx.log(ngx.ERR, "upload [" .. file_key .. "] direct to s3 failed! ")
+            insufficent_storage_check(s3_res_body,res_status)
             return
         end
     end
